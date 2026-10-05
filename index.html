@@ -1,0 +1,392 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>WebAR เครื่องซักผ้าอัจฉริยะ</title>
+    <!-- A-Frame Library -->
+    <script src="https://aframe.io/releases/1.2.0/aframe.min.js"></script>
+    <!-- AR.js for A-Frame -->
+    <script src="https://raw.githack.com/AR-js-org/AR.js/master/aframe/build/aframe-ar.js"></script>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Font Awesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            font-family: 'Sukhumvit Set', 'Takhoma', sans-serif;
+            user-select: none;
+            -webkit-user-select: none;
+        }
+        .a-canvas {
+            z-index: 0 !important;
+        }
+        .glass-panel {
+            background: rgba(15, 23, 42, 0.85);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.15);
+        }
+        .pulse-glow {
+            box-shadow: 0 0 15px rgba(59, 130, 246, 0.6);
+        }
+    </style>
+</head>
+<body style="margin: 0px; overflow: hidden;">
+
+    <!-- แถบแจ้งเตือนด้านบน -->
+    <div class="fixed top-0 left-0 right-0 z-50 p-4 pointer-events-none flex justify-between items-center">
+        <div class="glass-panel px-4 py-2 rounded-2xl flex items-center space-x-3 pointer-events-auto shadow-lg">
+            <i class="fa-solid fa-soap text-blue-400 text-xl"></i>
+            <div>
+                <h1 class="font-bold text-sm text-white">ระบบจำลองเครื่องซักผ้า AR</h1>
+                <p class="text-xs text-slate-300" id="markerStatus">ส่องกล้องไปที่ Marker Hiro</p>
+            </div>
+        </div>
+
+        <button id="toggleDebugBtn" class="glass-panel px-3 py-2 rounded-xl text-xs font-semibold text-white hover:bg-slate-700/50 transition pointer-events-auto flex items-center gap-2">
+            <i class="fa-solid fa-cube text-indigo-400"></i>
+            <span>โหมดตัวอย่าง 3D</span>
+        </button>
+    </div>
+
+    <!-- ข้อความคำแนะนำ -->
+    <div id="hiroInstructions" class="fixed top-20 left-1/2 transform -translate-x-1/2 z-40 pointer-events-none transition-all duration-300">
+        <div class="glass-panel px-4 py-2 rounded-full text-xs text-blue-300 border border-blue-500/30 flex items-center gap-2 shadow-lg">
+            <span class="relative flex h-2 w-2">
+              <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75"></span>
+              <span class="relative inline-flex rounded-full h-2 w-2 bg-blue-500"></span>
+            </span>
+            <span>กรุณาส่องกล้องไปที่ Marker "Hiro"</span>
+        </div>
+    </div>
+
+    <!-- แผงเมนูควบคุมด้านล่าง -->
+    <div class="fixed bottom-6 left-0 right-0 z-50 px-4 pointer-events-none">
+        <div class="max-w-md mx-auto glass-panel p-4 rounded-3xl pointer-events-auto shadow-2xl border border-white/10 space-y-4">
+            
+            <!-- สถานะ และ ปุ่มเปิดฝา -->
+            <div class="flex items-center justify-between border-b border-slate-700/60 pb-3">
+                <div class="flex items-center gap-2">
+                    <span id="statusIndicator" class="w-3 h-3 rounded-full bg-slate-500 shadow-sm"></span>
+                    <span id="statusText" class="text-xs font-semibold text-slate-200 uppercase tracking-wider">หยุดทำงาน</span>
+                </div>
+                
+                <button id="doorToggleBtn" class="bg-indigo-600 hover:bg-indigo-500 active:scale-95 text-white px-4 py-1.5 rounded-xl text-xs font-bold transition duration-200 flex items-center gap-2 shadow-lg shadow-indigo-600/30">
+                    <i id="doorIcon" class="fa-solid fa-door-closed"></i>
+                    <span id="doorBtnText">เปิดฝาถังซัก</span>
+                </button>
+            </div>
+
+            <!-- ปุ่มปรับความเร็วถังซัก -->
+            <div>
+                <label class="block text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-2">ความเร็วรอบถังซัก</label>
+                <div class="grid grid-cols-4 gap-2">
+                    <button data-speed="0" class="speed-btn active-speed bg-slate-800 hover:bg-slate-700 border border-blue-500/80 text-blue-400 py-2 rounded-xl text-xs font-bold transition flex flex-col items-center gap-1">
+                        <i class="fa-solid fa-stop text-sm"></i>
+                        หยุด
+                    </button>
+                    <button data-speed="150" class="speed-btn bg-slate-800/80 hover:bg-slate-700 border border-slate-700 text-slate-300 py-2 rounded-xl text-xs font-bold transition flex flex-col items-center gap-1">
+                        <i class="fa-solid fa-wind text-sm"></i>
+                        รอบเบา
+                    </button>
+                    <button data-speed="450" class="speed-btn bg-slate-800/80 hover:bg-slate-700 border border-slate-700 text-slate-300 py-2 rounded-xl text-xs font-bold transition flex flex-col items-center gap-1">
+                        <i class="fa-solid fa-gauge text-sm"></i>
+                        ปานกลาง
+                    </button>
+                    <button data-speed="1000" class="speed-btn bg-slate-800/80 hover:bg-slate-700 border border-slate-700 text-slate-300 py-2 rounded-xl text-xs font-bold transition flex flex-col items-center gap-1">
+                        <i class="fa-solid fa-bolt text-sm"></i>
+                        ปั่นเร็ว
+                    </button>
+                </div>
+            </div>
+
+            <!-- แสดงความเร็ว RPM -->
+            <div class="bg-slate-900/60 rounded-xl p-2.5 flex justify-between items-center text-xs">
+                <span class="text-slate-400">ความเร็วรอบปัจจุบัน:</span>
+                <span id="rpmDisplay" class="font-mono font-bold text-blue-400">0 RPM</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- ฉาก A-Frame AR -->
+    <a-scene 
+        embedded 
+        arjs="sourceType: webcam; debugUIEnabled: false; detectionMode: mono_and_matrix; matrixCodeType: 3x3;"
+        vr-mode-ui="enabled: false"
+        renderer="logarithmicDepthBuffer: true; colorManagement: true; antialias: true;"
+        id="arScene">
+
+        <!-- แสงสว่าง -->
+        <a-entity light="type: ambient; color: #ffffff; intensity: 0.9;"></a-entity>
+        <a-entity light="type: directional; color: #ffffff; intensity: 1.2; castShadow: true" position="2 4 2"></a-entity>
+        <a-entity light="type: point; color: #3b82f6; intensity: 0.8; distance: 5" position="0 1 1"></a-entity>
+
+        <!-- Hiro AR Marker -->
+        <a-marker preset="hiro" id="hiroMarker">
+            
+            <!-- โมเดลเครื่องซักผ้า 3D -->
+            <a-entity id="washingMachine" position="0 0 0" scale="0.8 0.8 0.8">
+                
+                <!-- ตัวเครื่องภายนอก -->
+                <a-box position="0 0.8 0" width="1.2" height="1.5" depth="1.2" color="#f8fafc" material="roughness: 0.2; metalness: 0.1 shadow: true"></a-box>
+                
+                <!-- แผงควบคุมดิจิทัล -->
+                <a-box position="0 1.41 0.55" width="1.1" height="0.22" depth="0.12" color="#1e293b" material="metalness: 0.5; roughness: 0.3"></a-box>
+                
+                <!-- ปุ่มหมุนแผงควบคุม -->
+                <a-cylinder position="-0.3 1.41 0.62" rotation="90 0 0" radius="0.06" height="0.04" color="#cbd5e1" material="metalness: 0.8"></a-cylinder>
+                
+                <!-- หน้าจอแสดงผล -->
+                <a-plane id="digitalScreen" position="0.2 1.41 0.62" width="0.25" height="0.1" color="#0284c7" material="emissive: #0284c7; emissiveIntensity: 0.6"></a-plane>
+                
+                <!-- ช่องใส่ผงซักฟอก -->
+                <a-box position="0.38 1.41 0.61" width="0.25" height="0.14" depth="0.02" color="#e2e8f0"></a-box>
+
+                <!-- ขอบฝาหน้า -->
+                <a-torus position="0 0.7 0.6" radius="0.42" tube="0.03" color="#334155" material="metalness: 0.8; roughness: 0.2"></a-torus>
+
+                <!-- ผนังถังซักด้านใน -->
+                <a-cylinder position="0 0.7 0.1" rotation="90 0 0" radius="0.44" height="0.8" color="#0f172a" side="double"></a-cylinder>
+
+                <!-- ถังซักผ้าส่วนที่หมุนได้ (Inner Drum) -->
+                <a-entity id="innerDrum" position="0 0.7 0.1" rotation="0 0 0">
+                    <!-- ตัวถังโลหะ -->
+                    <a-cylinder rotation="90 0 0" radius="0.41" height="0.75" color="#94a3b8" material="metalness: 0.9; roughness: 0.1" side="double">
+                        <a-cylinder position="0.3 0.1 0" radius="0.015" height="0.76" color="#334155" rotation="90 0 0"></a-cylinder>
+                        <a-cylinder position="-0.3 0.1 0" radius="0.015" height="0.76" color="#334155" rotation="90 0 0"></a-cylinder>
+                        <a-cylinder position="0 -0.3 0" radius="0.015" height="0.76" color="#334155" rotation="90 0 0"></a-cylinder>
+                        <a-cylinder position="0 0.3 0" radius="0.015" height="0.76" color="#334155" rotation="90 0 0"></a-cylinder>
+                    </a-cylinder>
+                    
+                    <!-- แผงกั้นด้านในถัง -->
+                    <a-box position="0 0.32 0" width="0.05" height="0.1" depth="0.7" color="#38bdf8"></a-box>
+                    <a-box position="0.28 -0.16 0" rotation="0 0 120" width="0.05" height="0.1" depth="0.7" color="#38bdf8"></a-box>
+                    <a-box position="-0.28 -0.16 0" rotation="0 0 -120" width="0.05" height="0.1" depth="0.7" color="#38bdf8"></a-box>
+
+                    <!-- ผ้าด้านในถังซัก -->
+                    <a-sphere position="0.1 -0.15 0.1" radius="0.12" color="#ef4444"></a-sphere>
+                    <a-sphere position="-0.12 -0.1 0.05" radius="0.14" color="#3b82f6"></a-sphere>
+                    <a-sphere position="0 -0.2 -0.1" radius="0.13" color="#eab308"></a-sphere>
+                </a-entity>
+
+                <!-- ฝาถังซัก (บานเปิดข้าง) -->
+                <a-entity id="doorHinge" position="-0.42 0.7 0.61" rotation="0 0 0">
+                    <a-torus position="0.42 0 0" radius="0.4" tube="0.025" color="#cbd5e1" material="metalness: 0.8; roughness: 0.2"></a-torus>
+                    <a-cylinder position="0.42 0 0" rotation="90 0 0" radius="0.38" height="0.02" color="#a5f3fc" material="transparent: true; opacity: 0.45; roughness: 0.1"></a-cylinder>
+                    <a-box position="0.82 0 0.02" width="0.04" height="0.16" depth="0.03" color="#0284c7"></a-box>
+                </a-entity>
+
+                <!-- ขารองฐานเครื่อง -->
+                <a-box position="-0.5 0.02 0.5" width="0.1" height="0.04" depth="0.1" color="#0f172a"></a-box>
+                <a-box position="0.5 0.02 0.5" width="0.1" height="0.04" depth="0.1" color="#0f172a"></a-box>
+                <a-box position="-0.5 0.02 -0.5" width="0.1" height="0.04" depth="0.1" color="#0f172a"></a-box>
+                <a-box position="0.5 0.02 -0.5" width="0.1" height="0.04" depth="0.1" color="#0f172a"></a-box>
+
+            </a-entity>
+        </a-marker>
+
+        <a-entity camera></a-entity>
+    </a-scene>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            let currentRPM = 0;
+            let targetRPM = 0;
+            let currentDrumRotation = 0;
+            let isDoorOpen = false;
+            let doorAngle = 0;
+            let targetDoorAngle = 0;
+            let isDebugMode = false;
+            let lastTimestamp = performance.now();
+
+            const innerDrum = document.getElementById('innerDrum');
+            const doorHinge = document.getElementById('doorHinge');
+            const statusIndicator = document.getElementById('statusIndicator');
+            const statusText = document.getElementById('statusText');
+            const doorToggleBtn = document.getElementById('doorToggleBtn');
+            const doorBtnText = document.getElementById('doorBtnText');
+            const doorIcon = document.getElementById('doorIcon');
+            const rpmDisplay = document.getElementById('rpmDisplay');
+            const speedButtons = document.querySelectorAll('.speed-btn');
+            const hiroMarker = document.getElementById('hiroMarker');
+            const markerStatus = document.getElementById('markerStatus');
+            const hiroInstructions = document.getElementById('hiroInstructions');
+            const toggleDebugBtn = document.getElementById('toggleDebugBtn');
+            const washingMachine = document.getElementById('washingMachine');
+            const digitalScreen = document.getElementById('digitalScreen');
+
+            // ระบบเสียงจำลองมอเตอร์และเสียงปุ่มกด (Web Audio API)
+            const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            let motorOscillator = null;
+            let motorGain = null;
+
+            function initAudio() {
+                if (motorOscillator) return;
+                try {
+                    motorOscillator = audioCtx.createOscillator();
+                    motorGain = audioCtx.createGain();
+                    motorOscillator.type = 'sawtooth';
+                    motorOscillator.frequency.setValueAtTime(30, audioCtx.currentTime);
+                    motorGain.gain.setValueAtTime(0, audioCtx.currentTime);
+                    motorOscillator.connect(motorGain);
+                    motorGain.connect(audioCtx.destination);
+                    motorOscillator.start();
+                } catch(e) { console.log('Audio init prevented:', e); }
+            }
+
+            function playBeepSound() {
+                if (audioCtx.state === 'suspended') {
+                    audioCtx.resume();
+                }
+                try {
+                    const osc = audioCtx.createOscillator();
+                    const gain = audioCtx.createGain();
+                    osc.type = 'sine';
+                    osc.frequency.setValueAtTime(800, audioCtx.currentTime);
+                    gain.gain.setValueAtTime(0.1, audioCtx.currentTime);
+                    gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.15);
+                    osc.connect(gain);
+                    gain.connect(audioCtx.destination);
+                    osc.start();
+                    osc.stop(audioCtx.currentTime + 0.15);
+                } catch(e){}
+            }
+
+            function updateMotorAudio(rpm) {
+                if (!motorGain || !motorOscillator) return;
+                if (rpm > 0) {
+                    const freq = 30 + (rpm / 1000) * 120;
+                    const vol = Math.min(0.08, (rpm / 1000) * 0.08);
+                    motorOscillator.frequency.setTargetAtTime(freq, audioCtx.currentTime, 0.1);
+                    motorGain.gain.setTargetAtTime(vol, audioCtx.currentTime, 0.1);
+                } else {
+                    motorGain.gain.setTargetAtTime(0, audioCtx.currentTime, 0.1);
+                }
+            }
+
+            // ตรวจจับ Marker
+            hiroMarker.addEventListener('markerFound', () => {
+                markerStatus.textContent = "พบ Marker Hiro แล้ว";
+                markerStatus.classList.replace('text-slate-300', 'text-emerald-400');
+                hiroInstructions.classList.add('opacity-0', 'pointer-events-none');
+            });
+
+            hiroMarker.addEventListener('markerLost', () => {
+                markerStatus.textContent = "ส่องกล้องไปที่ Marker Hiro";
+                markerStatus.classList.replace('text-emerald-400', 'text-slate-300');
+                hiroInstructions.classList.remove('opacity-0', 'pointer-events-none');
+            });
+
+            // ปุ่มสลับโหมดดูแบบ 3D (ไม่ต้องใช้ Marker)
+            toggleDebugBtn.addEventListener('click', () => {
+                isDebugMode = !isDebugMode;
+                playBeepSound();
+                if (isDebugMode) {
+                    toggleDebugBtn.classList.add('bg-indigo-600', 'text-white');
+                    washingMachine.setAttribute('position', '0 0 -2.5');
+                    washingMachine.setAttribute('rotation', '15 20 0');
+                    document.querySelector('a-scene').appendChild(washingMachine);
+                    markerStatus.textContent = "โหมดตัวอย่าง 3D";
+                    hiroInstructions.classList.add('opacity-0', 'pointer-events-none');
+                } else {
+                    toggleDebugBtn.classList.remove('bg-indigo-600', 'text-white');
+                    washingMachine.setAttribute('position', '0 0 0');
+                    washingMachine.setAttribute('rotation', '0 0 0');
+                    hiroMarker.appendChild(washingMachine);
+                    markerStatus.textContent = "ส่องกล้องไปที่ Marker Hiro";
+                    hiroInstructions.classList.remove('opacity-0', 'pointer-events-none');
+                }
+            });
+
+            // ปรับระดับความเร็วถังซัก
+            speedButtons.forEach(btn => {
+                btn.addEventListener('click', () => {
+                    initAudio();
+                    playBeepSound();
+                    
+                    const speed = parseInt(btn.getAttribute('data-speed'));
+
+                    if (isDoorOpen && speed > 0) {
+                        alert("เพื่อความปลอดภัย กรุณาปิดฝาถังซักก่อนเริ่มปั่นผ้า!");
+                        return;
+                    }
+
+                    targetRPM = speed;
+
+                    speedButtons.forEach(b => {
+                        b.classList.remove('active-speed', 'border-blue-500/80', 'text-blue-400');
+                        b.classList.add('border-slate-700', 'text-slate-300');
+                    });
+                    btn.classList.add('active-speed', 'border-blue-500/80', 'text-blue-400');
+                    btn.classList.remove('border-slate-700', 'text-slate-300');
+
+                    if (targetRPM === 0) {
+                        statusIndicator.className = "w-3 h-3 rounded-full bg-slate-500 shadow-sm";
+                        statusText.textContent = "หยุดทำงาน";
+                        digitalScreen.setAttribute('color', '#0284c7');
+                    } else {
+                        statusIndicator.className = "w-3 h-3 rounded-full bg-emerald-400 pulse-glow";
+                        statusText.textContent = "กำลังปั่นผ้า";
+                        digitalScreen.setAttribute('color', '#10b981');
+                    }
+                });
+            });
+
+            // ปุ่มเปิด/ปิดฝา
+            doorToggleBtn.addEventListener('click', () => {
+                initAudio();
+                playBeepSound();
+
+                if (!isDoorOpen && targetRPM > 0) {
+                    targetRPM = 0;
+                    speedButtons.forEach(b => b.classList.remove('active-speed', 'border-blue-500/80', 'text-blue-400'));
+                    speedButtons[0].classList.add('active-speed', 'border-blue-500/80', 'text-blue-400');
+                }
+
+                isDoorOpen = !isDoorOpen;
+                targetDoorAngle = isDoorOpen ? 110 : 0;
+
+                if (isDoorOpen) {
+                    doorBtnText.textContent = "ปิดฝาถังซัก";
+                    doorIcon.className = "fa-solid fa-door-open";
+                    doorToggleBtn.classList.replace('bg-indigo-600', 'bg-amber-600');
+                    doorToggleBtn.classList.replace('hover:bg-indigo-500', 'hover:bg-amber-500');
+                } else {
+                    doorBtnText.textContent = "เปิดฝาถังซัก";
+                    doorIcon.className = "fa-solid fa-door-closed";
+                    doorToggleBtn.classList.replace('bg-amber-600', 'bg-indigo-600');
+                    doorToggleBtn.classList.replace('hover:bg-amber-500', 'hover:bg-indigo-500');
+                }
+            });
+
+            // Loop อัปเดตแอนิเมชัน
+            function animate(now) {
+                requestAnimationFrame(animate);
+
+                const deltaTime = Math.min((now - lastTimestamp) / 1000, 0.1);
+                lastTimestamp = now;
+
+                currentRPM += (targetRPM - currentRPM) * 0.05;
+                if (Math.abs(currentRPM) < 0.1) currentRPM = 0;
+
+                if (currentRPM > 0) {
+                    currentDrumRotation += (currentRPM * 360 / 60) * deltaTime;
+                    innerDrum.setAttribute('rotation', `0 0 ${currentDrumRotation % 360}`);
+                }
+
+                doorAngle += (targetDoorAngle - doorAngle) * 0.1;
+                doorHinge.setAttribute('rotation', `0 ${doorAngle} 0`);
+
+                rpmDisplay.textContent = `${Math.round(currentRPM)} RPM`;
+                updateMotorAudio(currentRPM);
+            }
+
+            requestAnimationFrame(animate);
+        });
+    </script>
+</body>
+</html>
